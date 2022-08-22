@@ -1,7 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 
 #include "SAT_Resolver.h"
 #include "BasicComponent.h"
@@ -264,7 +263,6 @@ int updateDataStack(Data D, char* stackRev, char* stackIdx) {
 int* dis(int* a, int* b, int n) {
 	for (int i = 1; i <= n; i++)
 		if (a[i] == 0)a[i] = b[i];
-	free(b);
 	return a;
 }
 
@@ -329,7 +327,6 @@ int* DPLL(Data D, FILE* fp) {
 				idx = pC->firstL->varIdx, rev = pC->firstL->isRev;
 				if (stackIdx[idx] == TRUE) {
 					if (stackRev[idx] != rev) {
-						free(re);
 						free(stackRev);
 						free(stackIdx);
 						return FALSE;
@@ -343,7 +340,6 @@ int* DPLL(Data D, FILE* fp) {
 				}
 			}
 			else if (isEmptyClause(pC)) {
-				free(re);
 				free(stackRev);
 				free(stackIdx);
 				return FALSE;
@@ -352,7 +348,6 @@ int* DPLL(Data D, FILE* fp) {
 		}
 
 		if (updateDataStack(D, stackRev, stackIdx) == FALSE) {	//0.20
-			free(re);
 			free(stackRev);
 			free(stackIdx);
 			return FALSE;
@@ -363,61 +358,43 @@ int* DPLL(Data D, FILE* fp) {
 	free(stackRev);
 	free(stackIdx);
 
-
-
-
 	int varIdx;	//0.025
 	{
-		int minLen = 1 << 25;
-		{
-			ClauseNode pC = D->firstC;
-			while (pC != NULL) {
-				if (pC->nodeNum < minLen)minLen = pC->nodeNum;
-				pC = pC->nextC;
-			}
-		}
-		float* score = (float*)malloc(sizeof(float) * (D->varNum + 1));
-		for (int i = 0; i < D->varNum; i++)score[i] = 0;
-
+		//int minLength = 1 << 25;
 		ClauseNode pC = D->firstC;
+		//while (pC != NULL) {
+		//	if (pC->nodeNum < minLength) minLength = pC->nodeNum;
+		//	pC = pC->nextC;
+		//}
 
-		float max = 0;
+		int max = 0;
+		int* cnt = (int*)malloc(sizeof(int) *( D->varNum + 1));
+		for (int i = 1; i <= D->varNum; i++)cnt[i] = 0;
 		pC = D->firstC;
 		LiteralNode pL;
-		int idx, len;
 		while (pC != NULL) {
+			//if (pC->nodeNum == minLength) {
+			//	pL = pC->firstL;
+			//	while (pL != NULL) {
+			//		if (++cnt[pL->varIdx] > max) {
+			//			varIdx = pL->varIdx;
+			//			max = cnt[varIdx];
+			//		};
+			//		pL = pL->nextL;
+			//	}
+			//}
+			//pC = pC->nextC;
 			pL = pC->firstL;
-			len = pC->nodeNum;
 			while (pL != NULL) {
-				idx = pL->varIdx;
-				score[idx] +=  pow(2, -1 * len);
-				if (score[idx] > max) {
-					max = score[idx];
-					varIdx = idx;
-				}
+				if (++cnt[pL->varIdx] > max) {
+					varIdx = pL->varIdx;
+					max = cnt[varIdx];
+				};
 				pL = pL->nextL;
 			}
 			pC = pC->nextC;
 		}
-		free(score);
-
-		//int max = 0;
-		//int* cnt = (int*)malloc(sizeof(int) *( D->varNum + 1));
-		//for (int i = 1; i <= D->varNum; i++)cnt[i] = 0;
-		//pC = D->firstC;
-		//LiteralNode pL;
-		//while (pC != NULL) {
-		//	pL = pC->firstL;
-		//	while (pL != NULL) {
-		//		if (++cnt[pL->varIdx] > max) {
-		//			varIdx = pL->varIdx;
-		//			max = cnt[varIdx];
-		//		};
-		//		pL = pL->nextL;
-		//	}
-		//	pC = pC->nextC;
-		//}
-		//free(cnt);
+		free(cnt);
 	}
 
 	//clockStart();
@@ -426,8 +403,8 @@ int* DPLL(Data D, FILE* fp) {
 	
 	if (D->firstC != NULL) {
 		Data DC = copyAll(D);	//0.57
+
 		if (updateData(D, varIdx, TRUE) == FALSE) {	//0.05
-			free(re);
 			deleteData(DC);
 			return FALSE;
 		}
