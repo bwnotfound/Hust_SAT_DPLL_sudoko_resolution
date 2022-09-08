@@ -30,12 +30,24 @@
     <ClCompile Include="sudoku.c">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="basicComponent.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="betterDPLL.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="BtDpll.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SAT_Resolver.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="BasicComponent.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="BtDpll.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

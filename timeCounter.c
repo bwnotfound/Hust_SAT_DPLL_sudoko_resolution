@@ -5,6 +5,7 @@ int start;
 int clockIsStart = 0;
 int count = 0;
 int mod = 1;
+int timeLimit = 40000000;
 
 void clockStart() {
 	if (!clockIsStart) {
@@ -41,4 +42,15 @@ int clockStoreOut() {
 }
 int clockStoreClear() {
 	timeStore = 0;
+}
+int getClockStored() {
+	return timeStore;
+}
+int timeOut() {
+	clockStoreStop();
+	int re;
+	if (timeStore > timeLimit) re = 1;
+	else re = 0;
+	clockStoreStart();
+	return re;
 }

@@ -109,53 +109,7 @@ Data copyAll(Data D) {
 	}
 	return DC;
 }
-ClauseNode readLine(FILE* fp) {
-	int in;
-	int fre = fscanf(fp, "%d", &in);
-	if(fre == 0 || fre == EOF)return NULL;
-	if (in == 0) { printf("Something wrong in readline(); Maybe the cnf file contains a empty clause."); return NULL; }	//Should never be triggered
-	ClauseNode re = getClause();
-	re->firstL = getLiteral();
-	LiteralNode p = re->firstL;
-	if (in < 0)p->isRev = TRUE, p->varIdx = in * -1;
-	else p->varIdx = in;
-	re->nodeNum++;
-	fscanf(fp, "%d", &in);
-	while (in != 0) {
-		p->nextL = getLiteral();
-		p->nextL->preL = p;
-		p = p->nextL;
-		if (in < 0)p->isRev = TRUE, p->varIdx = in * -1;
-		else p->varIdx = in;
-		fscanf(fp, "%d", &in);
-		re->nodeNum++;
-	}
-	return re;
-}
-Data initByCnf(FILE* fp) {	//NULL represent unsat, because of the empty clause.
-	char ch;
-	while ((ch = fgetc(fp)) == 'c')while ((ch = fgetc(fp)) != '\n');
-	Data D = getData();
 
-	int status = FALSE;
-	while ((ch = fgetc(fp)) != 'c');
-	if (fgetc(fp) == 'n' && fgetc(fp) == 'f')status = TRUE;
-
-	if (status) {
-		if(fscanf(fp, "%d%d", &D->varNum, &D->clauseNum) == EOF)printf("Something went wrong in initByCnf();");
-		D->firstC = readLine(fp);
-		ClauseNode p = D->firstC, tem;
-		while (p != NULL) {
-			tem = readLine(fp);
-			p->nextC = tem;
-			if (tem == NULL)break;
-			p->nextC->preC = p;
-			p = p->nextC;
-		}
-	}
-	else printf("TODO");
-	return D;
-}
 void traverse(Data D, FILE* fp) {
 	if (D == NULL)return;
 	fprintf(fp, "p cnf %d %d\n", D->varNum, D->clauseNum);
@@ -226,7 +180,6 @@ int updateData(Data D, int varIdx, int isTrue) {
 	return TRUE;
 }
 
-
 int updateClauseStack(ClauseNode T, char* stackRev, char* stackIdx, Data D) {
 	if (T == NULL)return FALSE;
 	LiteralNode pL = NULL;
@@ -260,7 +213,6 @@ int updateDataStack(Data D, char* stackRev, char* stackIdx) {
 	return TRUE;
 }
 
-
 int* dis(int* a, int* b, int n) {
 	for (int i = 1; i <= n; i++)
 		if (a[i] == 0)a[i] = b[i];
@@ -268,19 +220,39 @@ int* dis(int* a, int* b, int n) {
 	return a;
 }
 
-int* DPLL(Data D, FILE* fp) {
+char* stackRev;
+char* stackIdx;
+char* pureIsCheck;
+char* pureRev;
+char* pureNoStay;
+float* score;
 
+void dpllInit(Data D) {
+	stackRev = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	stackIdx = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	pureIsCheck = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	pureRev = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	pureNoStay = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	score = (float*)malloc(sizeof(float) * (D->varNum + 1));
+}
+void dpllEnd(Data D) {
+	free(stackRev);
+	free(stackIdx);
+	free(pureIsCheck);
+	free(pureRev);
+	free(pureNoStay);
+}
+
+int* DPLL(Data D) {
+	if (timeOut()) {
+		return 2;
+	}
 	int* re = (int*)malloc(sizeof(int) * (D->varNum + 1));
-	for (int i = 0; i <= D->varNum; i++)re[i] = FALSE;
 
-	char* stackRev = (char*)malloc(sizeof(char) * (D->varNum + 1));
-	char* stackIdx = (char*)malloc(sizeof(char) * (D->varNum + 1));
-	//for (int i = 0; i <= D->varNum; i++) stackRev[i] = stackIdx[i] = FALSE;	//赋值和创建共0.02
-	//clockStoreStart();
-	{
-		char* pureIsCheck = (char*)malloc(sizeof(char) * (D->varNum + 1));
-		char* pureRev = (char*)malloc(sizeof(char) * (D->varNum + 1));
-		char* pureNoStay = (char*)malloc(sizeof(char) * (D->varNum + 1));
+	for (int i = 0; i <= D->varNum; i++)re[i] = FALSE;
+	
+	/*{
+		
 		for (int i = 0; i <= D->varNum; i++)stackRev[i] = stackIdx[i] = pureIsCheck[i] = pureNoStay[i] = pureRev[i] = FALSE;
 
 		ClauseNode pC = D->firstC;
@@ -310,10 +282,7 @@ int* DPLL(Data D, FILE* fp) {
 			}
 			pC = pC->nextC;
 		}
-		free(pureIsCheck);
-		free(pureRev);
-		free(pureNoStay);
-	}
+	}*/
 
 	//clockStoreStop();
 
@@ -324,14 +293,14 @@ int* DPLL(Data D, FILE* fp) {
 		ClauseNode pC = D->firstC;
 		LiteralNode pL = NULL;
 		
+		for (int i = 0; i <= D->varNum; i++) stackRev[i] = stackIdx[i] = FALSE;
+
 		while (pC != NULL) {	//0.10
 			if (isSingleClause(pC)) {
 				idx = pC->firstL->varIdx, rev = pC->firstL->isRev;
 				if (stackIdx[idx] == TRUE) {
 					if (stackRev[idx] != rev) {
 						free(re);
-						free(stackRev);
-						free(stackIdx);
 						return FALSE;
 					}
 				}
@@ -344,8 +313,6 @@ int* DPLL(Data D, FILE* fp) {
 			}
 			else if (isEmptyClause(pC)) {
 				free(re);
-				free(stackRev);
-				free(stackIdx);
 				return FALSE;
 			}
 			pC = pC->nextC;
@@ -353,18 +320,9 @@ int* DPLL(Data D, FILE* fp) {
 
 		if (updateDataStack(D, stackRev, stackIdx) == FALSE) {	//0.20
 			free(re);
-			free(stackRev);
-			free(stackIdx);
 			return FALSE;
 		}
-
-		if(flag)for (int i = 0; i <= D->varNum; i++) stackRev[i] = stackIdx[i] = FALSE;	//赋值和创建共0.02
 	}
-	free(stackRev);
-	free(stackIdx);
-
-
-
 
 	int varIdx;	//0.025
 	{
@@ -376,7 +334,6 @@ int* DPLL(Data D, FILE* fp) {
 				pC = pC->nextC;
 			}
 		}
-		float* score = (float*)malloc(sizeof(float) * (D->varNum + 1));
 		for (int i = 0; i < D->varNum; i++)score[i] = 0;
 
 		ClauseNode pC = D->firstC;
@@ -390,7 +347,7 @@ int* DPLL(Data D, FILE* fp) {
 			len = pC->nodeNum;
 			while (pL != NULL) {
 				idx = pL->varIdx;
-				score[idx] +=  pow(2, -1 * len);
+				score[idx] += pow(0.5, len);
 				if (score[idx] > max) {
 					max = score[idx];
 					varIdx = idx;
@@ -399,56 +356,49 @@ int* DPLL(Data D, FILE* fp) {
 			}
 			pC = pC->nextC;
 		}
-		free(score);
-
-		//int max = 0;
-		//int* cnt = (int*)malloc(sizeof(int) *( D->varNum + 1));
-		//for (int i = 1; i <= D->varNum; i++)cnt[i] = 0;
-		//pC = D->firstC;
-		//LiteralNode pL;
-		//while (pC != NULL) {
-		//	pL = pC->firstL;
-		//	while (pL != NULL) {
-		//		if (++cnt[pL->varIdx] > max) {
-		//			varIdx = pL->varIdx;
-		//			max = cnt[varIdx];
-		//		};
-		//		pL = pL->nextL;
-		//	}
-		//	pC = pC->nextC;
-		//}
-		//free(cnt);
 	}
-
-	//clockStart();
-	//clockStop(1);
+		
 	int* reTem;
 	
 	if (D->firstC != NULL) {
+
+		int flag = rand() > (RAND_MAX / 2);
+
 		Data DC = copyAll(D);	//0.57
-		if (updateData(D, varIdx, TRUE) == FALSE) {	//0.05
+
+		if (updateData(D, varIdx, flag) == FALSE) {	//0.05
 			free(re);
 			deleteData(DC);
 			return FALSE;
 		}
-		reTem = DPLL(D, fp);
+		reTem = DPLL(D);
+		if (reTem == 2) { 
+			deleteData(DC);
+			return 2; 
+		}
 		if (reTem != FALSE) {
 			deleteData(DC);
-			re[varIdx] = 1;
+			re[varIdx] = flag ? 1 : -1;
 			return dis(re, reTem, D->varNum);
 		}
 		else {
-			if (updateData(DC, varIdx, FALSE) == FALSE) {
+			if (updateData(DC, varIdx, flag ^ 1) == FALSE) {
+				free(re);
 				deleteData(DC);
 				return FALSE;
 			}
-			reTem = DPLL(DC, fp);
+			reTem = DPLL(DC);
+			if (reTem == 2) {
+				deleteData(DC);
+				return 2;
+			}
 			if (reTem != NULL) {
 				deleteData(DC);
-				re[varIdx] = -1;
+				re[varIdx] = flag ^ 1 ? 1 : -1;
 				return dis(re, reTem, D->varNum);
 			}
 			else {
+				free(re);
 				deleteData(DC);
 				return FALSE;
 			}
@@ -456,5 +406,397 @@ int* DPLL(Data D, FILE* fp) {
 	}
 	else {
 		return re;
+	}
+}
+
+
+
+int* BtDPLL(Data D) {
+	if (timeOut()) {
+		return 2;
+	}
+	int* re = (int*)malloc(sizeof(int) * (D->varNum + 1));
+
+	for (int i = 0; i <= D->varNum; i++)re[i] = FALSE;
+
+	/*{
+
+		for (int i = 0; i <= D->varNum; i++)stackRev[i] = stackIdx[i] = pureIsCheck[i] = pureNoStay[i] = pureRev[i] = FALSE;
+
+		ClauseNode pC = D->firstC;
+		LiteralNode pL = NULL;
+		int idx, rev;
+		while (pC != NULL) {
+			pL = pC->firstL;
+			while (pL != NULL) {
+				idx = pL->varIdx, rev = pL->isRev;
+				if (pureNoStay[idx] == FALSE) {
+					if (pureIsCheck[idx] == FALSE) {
+						pureIsCheck[idx] = TRUE;
+						pureRev[idx] = rev;
+						stackIdx[idx] = TRUE;
+						re[idx] = rev ? -1 : 1;
+						stackRev[idx] = rev;
+					}
+					else {
+						if (pureRev[idx] != rev) {
+							pureNoStay[idx] = TRUE;
+							re[idx] = stackIdx[idx] = FALSE;
+							stackRev[idx] = FALSE;
+						}
+					}
+				}
+				pL = pL->nextL;
+			}
+			pC = pC->nextC;
+		}
+	}*/
+
+	//clockStoreStop();
+
+	int flag = TRUE;
+	int idx, rev;
+	while (flag) {
+		flag = FALSE;
+		ClauseNode pC = D->firstC;
+		LiteralNode pL = NULL;
+
+		for (int i = 0; i <= D->varNum; i++) stackRev[i] = stackIdx[i] = FALSE;
+
+		while (pC != NULL) {	//0.10
+			if (isSingleClause(pC)) {
+				idx = pC->firstL->varIdx, rev = pC->firstL->isRev;
+				if (stackIdx[idx] == TRUE) {
+					if (stackRev[idx] != rev) {
+						free(re);
+						return FALSE;
+					}
+				}
+				else {
+					stackIdx[idx] = TRUE;
+					re[idx] = rev ? -1 : 1;
+					stackRev[idx] = rev;
+					flag = TRUE;
+				}
+			}
+			else if (isEmptyClause(pC)) {
+				free(re);
+				return FALSE;
+			}
+			pC = pC->nextC;
+		}
+
+		if (updateDataStack(D, stackRev, stackIdx) == FALSE) {	//0.20
+			free(re);
+			return FALSE;
+		}
+	}
+	int varIdx;
+	if (D->firstC != NULL) varIdx = D->firstC->firstL->varIdx;	//0.025
+	/*{
+		int minLen = 1 << 25;
+		{
+			ClauseNode pC = D->firstC;
+			while (pC != NULL) {
+				if (pC->nodeNum < minLen)minLen = pC->nodeNum;
+				pC = pC->nextC;
+			}
+		}
+		for (int i = 0; i < D->varNum; i++)score[i] = 0;
+
+		ClauseNode pC = D->firstC;
+
+		float max = 0;
+		pC = D->firstC;
+		LiteralNode pL;
+		int idx, len;
+		while (pC != NULL) {
+			pL = pC->firstL;
+			len = pC->nodeNum;
+			while (pL != NULL) {
+				idx = pL->varIdx;
+				score[idx] += pow(0.5, len);
+				if (score[idx] > max) {
+					max = score[idx];
+					varIdx = idx;
+				}
+				pL = pL->nextL;
+			}
+			pC = pC->nextC;
+		}
+	}*/
+
+	int* reTem;
+
+	if (D->firstC != NULL) {
+
+		int flag = rand() > (RAND_MAX / 2);
+
+		Data DC = copyAll(D);	//0.57
+
+		if (updateData(D, varIdx, flag) == FALSE) {	//0.05
+			free(re);
+			deleteData(DC);
+			return FALSE;
+		}
+		reTem = BtDPLL(D);
+		if (reTem == 2) {
+			deleteData(DC);
+			return 2;
+		}
+		if (reTem != FALSE) {
+			deleteData(DC);
+			re[varIdx] = flag ? 1 : -1;
+			return dis(re, reTem, D->varNum);
+		}
+		else {
+			if (updateData(DC, varIdx, flag ^ 1) == FALSE) {
+				free(re);
+				deleteData(DC);
+				return FALSE;
+			}
+			reTem = BtDPLL(DC);
+			if (reTem == 2) {
+				deleteData(DC);
+				return 2;
+			}
+			if (reTem != NULL) {
+				deleteData(DC);
+				re[varIdx] = flag ^ 1 ? 1 : -1;
+				return dis(re, reTem, D->varNum);
+			}
+			else {
+				free(re);
+				deleteData(DC);
+				return FALSE;
+			}
+		}
+	}
+	else {
+		return re;
+	}
+}
+
+int* DPLL3(Data D) {
+	if (timeOut()) {
+		return 2;
+	}
+	int* re = (int*)malloc(sizeof(int) * (D->varNum + 1));
+
+	for (int i = 0; i <= D->varNum; i++)re[i] = FALSE;
+
+	/*{
+
+		for (int i = 0; i <= D->varNum; i++)stackRev[i] = stackIdx[i] = pureIsCheck[i] = pureNoStay[i] = pureRev[i] = FALSE;
+
+		ClauseNode pC = D->firstC;
+		LiteralNode pL = NULL;
+		int idx, rev;
+		while (pC != NULL) {
+			pL = pC->firstL;
+			while (pL != NULL) {
+				idx = pL->varIdx, rev = pL->isRev;
+				if (pureNoStay[idx] == FALSE) {
+					if (pureIsCheck[idx] == FALSE) {
+						pureIsCheck[idx] = TRUE;
+						pureRev[idx] = rev;
+						stackIdx[idx] = TRUE;
+						re[idx] = rev ? -1 : 1;
+						stackRev[idx] = rev;
+					}
+					else {
+						if (pureRev[idx] != rev) {
+							pureNoStay[idx] = TRUE;
+							re[idx] = stackIdx[idx] = FALSE;
+							stackRev[idx] = FALSE;
+						}
+					}
+				}
+				pL = pL->nextL;
+			}
+			pC = pC->nextC;
+		}
+	}*/
+
+	//clockStoreStop();
+
+	int flag = TRUE;
+	int idx, rev;
+	while (flag) {
+		flag = FALSE;
+		ClauseNode pC = D->firstC;
+		LiteralNode pL = NULL;
+
+		for (int i = 0; i <= D->varNum; i++) stackRev[i] = stackIdx[i] = FALSE;
+
+		while (pC != NULL) {	//0.10
+			if (isSingleClause(pC)) {
+				idx = pC->firstL->varIdx, rev = pC->firstL->isRev;
+				if (stackIdx[idx] == TRUE) {
+					if (stackRev[idx] != rev) {
+						free(re);
+						return FALSE;
+					}
+				}
+				else {
+					stackIdx[idx] = TRUE;
+					re[idx] = rev ? -1 : 1;
+					stackRev[idx] = rev;
+					flag = TRUE;
+				}
+			}
+			else if (isEmptyClause(pC)) {
+				free(re);
+				return FALSE;
+			}
+			pC = pC->nextC;
+		}
+
+		if (updateDataStack(D, stackRev, stackIdx) == FALSE) {	//0.20
+			free(re);
+			return FALSE;
+		}
+	}
+
+	int varIdx;	//0.025
+	{
+		int minLen = 1 << 25;
+		{
+			ClauseNode pC = D->firstC;
+			while (pC != NULL) {
+				if (pC->nodeNum < minLen)minLen = pC->nodeNum;
+				pC = pC->nextC;
+			}
+		}
+		for (int i = 0; i < D->varNum; i++)score[i] = 0;
+
+		ClauseNode pC = D->firstC;
+
+		float max = 0;
+		pC = D->firstC;
+		LiteralNode pL;
+		int idx, len;
+		while (pC != NULL) {
+			pL = pC->firstL;
+			len = pC->nodeNum;
+			while (pL != NULL) {
+				idx = pL->varIdx;
+				if (pL->isRev)score[idx] += 10000;
+				else score[idx] += 1;
+				int scoreInt = (int)(score[idx] + 0.01);
+				if (scoreInt % 10000 > max) {
+					max = scoreInt % 10000;
+					varIdx = idx;
+				}
+				if(scoreInt / 10000 > max) {
+					max = scoreInt / 10000;
+					varIdx = idx;
+				}
+				pL = pL->nextL;
+			}
+			pC = pC->nextC;
+		}
+	}
+
+	int* reTem;
+
+	if (D->firstC != NULL) {
+
+		int flag = rand() > (RAND_MAX / 2);
+
+		Data DC = copyAll(D);	//0.57
+
+		if (updateData(D, varIdx, flag) == FALSE) {	//0.05
+			free(re);
+			deleteData(DC);
+			return FALSE;
+		}
+		reTem = DPLL(D);
+		if (reTem == 2) {
+			deleteData(DC);
+			return 2;
+		}
+		if (reTem != FALSE) {
+			deleteData(DC);
+			re[varIdx] = flag ? 1 : -1;
+			return dis(re, reTem, D->varNum);
+		}
+		else {
+			if (updateData(DC, varIdx, flag ^ 1) == FALSE) {
+				free(re);
+				deleteData(DC);
+				return FALSE;
+			}
+			reTem = DPLL(DC);
+			if (reTem == 2) {
+				deleteData(DC);
+				return 2;
+			}
+			if (reTem != NULL) {
+				deleteData(DC);
+				re[varIdx] = flag ^ 1 ? 1 : -1;
+				return dis(re, reTem, D->varNum);
+			}
+			else {
+				free(re);
+				deleteData(DC);
+				return FALSE;
+			}
+		}
+	}
+	else {
+		return re;
+	}
+}
+
+int* startDpll(Data D) {
+	dpllInit(D);
+	int* re = DPLL(D);
+	dpllEnd(D);
+	return re;
+}
+
+void outputErrorClause(ClauseNode pC, int number) {
+	printf("UnsatClause%d: ", number);
+	for (LiteralNode pL = pC->firstL; pL != NULL; pL = pL->nextL) {
+		printf("%d ", pL->varIdx * (pL->isRev ? -1 : 1));
+	}
+	printf("\n");
+}
+int* verifyDpllResult(Data D, FILE* fpRead) {
+	int tem;
+	fgetc(fpRead);
+	fscanf(fpRead, "%d", &tem);
+	fgetc(fpRead); fgetc(fpRead);
+	if (tem == -1) {
+		printf("Result: 超时\n");
+	}
+	else if (tem == 0) {
+		printf("Result: 不满足样例\n");
+	}
+	else {
+		int assign[10000];
+		int tag = 1, flag = 0;
+		for (int i = 0; i < 10000; i++)assign[i] = 0;
+		for (int i = 0; i < D->varNum; i++) {
+			fscanf(fpRead, "%d", &tem);
+			if (tem > 0)tag = 1; else tag = -1;
+			assign[tem * tag] = tag;
+			printf("%d\n", tem);
+		}
+		int i = 1;
+		printf("\n\n");
+		tag = 0;
+		for (ClauseNode pC = D->firstC; pC != NULL; pC = pC->nextC, i++) {
+			flag = 0;
+			for (LiteralNode pL = pC->firstL; pL != NULL; pL = pL->nextL) {
+				if (pL->isRev == (assign[pL->varIdx] == -1)) { tag = flag = 1; break; }
+			}
+			if (flag == 0) {
+				outputErrorClause(pC, i);
+			}
+		}
+		if (tag == 0)printf("\n\nResult: Unsatisified\n");
+		else printf("\n\nResult: Satisified\n");
 	}
 }
